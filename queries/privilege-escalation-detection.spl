@@ -1,0 +1,32 @@
+index=* EventCode=4720
+| table _time, host, user, src_user
+| rename host as "Machine", user as "New Account", src_user as "Created By"
+| sort -_time
+
+index=* EventCode=4732
+| table _time, host, user, src_user, Group_Name
+| rename host as "Machine", user as "User Added", src_user as "Added By"
+| sort -_time
+
+index=* EventCode=4726
+| table _time, host, user, src_user
+| rename host as "Machine", user as "Deleted Account", src_user as "Deleted By"
+| sort -_time
+
+index=* (EventCode=4720 OR EventCode=4732 OR EventCode=4726)
+| eval Activity=case(
+    EventCode="4720","1 - Account Created",
+    EventCode="4732","2 - Added to Admin Group",
+    EventCode="4726","3 - Account Deleted")
+| table _time, host, Activity, user, src_user
+| sort _time
+
+index=* (EventCode=4625 OR EventCode=4720 OR EventCode=4732)
+| eval Stage=case(
+    EventCode="4625","Stage 1 - Brute Force",
+    EventCode="4720","Stage 2 - Account Created",
+    EventCode="4732","Stage 3 - Privilege Escalated")
+| stats values(Stage) as AttackStages, count by host
+| where mvcount(AttackStages) >= 2
+| eval Verdict="Multi-Stage Attack Detected"
+| table host, AttackStages, Verdict
